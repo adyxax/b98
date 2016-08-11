@@ -1,0 +1,11 @@
+Dependencies :
+  - Fungi : cabal install fungi
+  - gnutls-devel
+
+Configuring :
+  - irc server and port : src/config.h
+  - password and NICK in bot.b98
+
+Running the bot :
+  - make
+  - ./cbot
