@@ -6,6 +6,7 @@
 #include <unistd.h>
 
 #include "b98.h"
+#include "dbg.h"
 #include "tls.h"
 
 pid_t pid = 0;
@@ -63,24 +64,24 @@ int bot_loop(int socket_fd)
         FD_SET(socket_fd, &rfds);
         select(20, &rfds, NULL, NULL, &timeout);
         if ( FD_ISSET(PARENT_READ, &rfds) ) {
-            static char sbuf[512]; /* string buffer */
-            static int n = 0; /* nition in buffer */
-            ssize_t len = n + read(PARENT_READ, sbuf + n, 512 - n);
-            while (n < len) {
-                if ((n > 0 && sbuf[n] == '\n' && sbuf[n - 1] == '\r') ) { /* If we got a full message */
-                    tls_send(sbuf, n);
-                    sbuf[n - 1] = '\0';
-                    printf(">>> %s\n", sbuf);
-                    memmove(sbuf, sbuf + n + 1, len - n - 1);
-                    len = len - n - 1;
-                    if (len == 1)
-                        len = 0;
-                    n = 0; /* we reinitialise n for the next run */
-                } else if (n == 512) { /* If we got a full buffer without finding a \r\n */
+            static char msg[512]; /* string buffer */
+            static int pos = 0; /* position in buffer */
+            char sbuf[512];
+            ssize_t len = read(PARENT_READ, sbuf, sizeof(sbuf));
+            for (int n = 0; n < len; n++) {
+                msg[pos] = sbuf[n];
+
+                if ((pos > 0 && msg[pos] == '\n' && msg[pos - 1] == '\r') ) { /* If we got a full message */
+                    tls_send(msg, pos + 1);
+
+                    msg[pos - 1] = '\0';
+                    printf(">>> %s\n", msg);
+                    pos = 0; /* we reinitialise n for the next run */
+                } else if (pos == sizeof(msg)) { /* If we got a full buffer without finding a \r\n */
                     fprintf(stderr, "We got a full buffer without finding a \r\n");
                     return 2;
                 } else { /* Nothing to do otherwise but roll the next char */
-                    n++;
+                    pos++;
                 }
             }
         } else if ( FD_ISSET(socket_fd, &rfds) ) {
@@ -95,8 +96,8 @@ int bot_handle_input(const char* const sbuf, int len)
     static int pos = 0; /* position in msg buffer */
     for (int n = 0; n < len; n++) {
         msg[pos] = sbuf[n];
-        if ((n > 0 && sbuf[n] == '\n' && sbuf[n - 1] == '\r') ) { /* If we got a full message */
-            write(PARENT_WRITE, msg, n);
+        if ((pos > 0 && msg[pos] == '\n' && msg[pos - 1] == '\r') ) { /* If we got a full message */
+            write(PARENT_WRITE, msg, pos + 1);
             msg[pos - 1] = '\0';
             printf("<<< %s\n", msg);
             pos = 0; /* we reinitialise pos for the next run */
